@@ -1,0 +1,509 @@
+---
+title: "Beroepsproduct Verdieping"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+    # Q: flexdashboard --> how to get 1 page in scroll and other page in fill?
+    
+editor_options: 
+  chunk_output_type: inline
+---
+
+
+# CodePage {data-orientation=columns}
+
+
+
+<B>Load Libraries</B>
+```{r setup, include=FALSE}
+library(tidyverse)
+library(ggplot2)
+library(flexdashboard)
+library(lubridate)
+library(DBI)
+library(readr)
+library(dplyr)
+library(scales)
+```
+
+
+<B>Read Data Sources</B>
+```{r, echo=TRUE}
+features <- read.csv("Data/Features data set.csv")
+sales <- read_csv("Data/sales data-set.csv")
+stores <- read.csv("Data/stores data-set.csv")
+```
+
+
+#### <B>Explore Dataframe "stores"</B>
+```{r, echo=TRUE}
+summary(stores)
+head(stores)
+str(stores)
+```
+
+#### <B>Explore Dataframe "sales"</B>
+```{r, echo=TRUE}
+summary(sales)
+head(sales)
+str(sales)
+```
+
+#### <B>Explore Dataframe "features"</B>
+```{r, echo=TRUE}
+# Markdown = In finance, a markdown is a reduction in the price and value of an asset
+# CPI = The Consumer Price Index (CPI) is a measure that examines the weighted average of prices of a basket of consumer goods and services, such as transportation, food, and medical care. It is calculated by taking price changes for each item in the predetermined basket of goods and averaging them.
+# Markdown 1 to 5, CPI, Unemployment and IsHOliday contain N/A's.
+
+summary(features)
+head(features)
+str(features)
+
+```
+
+#### <B>Format dates to ISO standard notation</B>
+```{r, echo=TRUE}
+# Format dates to ISO standard notation, but keep them as type character. 
+# The reason to keep them as chr type is that later I use SQLlite to filter on dates. 
+# SQLlite can only work with dates in ISO notation which are of type character
+# When formatting, High Cap "Y" is used to maintain the correct century. 
+
+sales <- sales%>%
+  mutate(Date=as.Date.character(Date, format="%d/%m/%Y"))%>%  #format to type date in ISO notation
+  mutate(Date=format(Date, "%Y-%m-%d"))                       #then format back to type character
+
+features <- features%>%
+  mutate(Date=as.Date.character(Date, format="%d/%m/%Y"))%>%  #format to type date in ISO notation
+  mutate(Date=format(Date, "%Y-%m-%d"))                       #then format back to type character
+
+head(sales)
+head(features)
+
+```
+
+
+#### <B>Setup SQLite Database</B>
+```{r, echo=TRUE}
+
+# Here all 3 dataframes are stored as tables in an in-memory SQLite database.
+# Because our data is stored in a database, we can apply SQL code to transform the data.
+
+# Create an ephemeral in-memory RSQLite database
+    con <- dbConnect(RSQLite::SQLite(), dbname = ":memory:")
+
+#Add data sources to the 'in memory' sql database
+    copy_to(con,stores,"storesSQL")
+    copy_to(con,sales, "salesSQL")
+    copy_to(con,features, "featuresSQL")
+
+```
+
+
+#### <B>SQL Chunk 1: Create DF "weeklySalesPerStore"</B>
+```{sql, echo=TRUE, connection=con, label='Join', output.var="weeklySalesPerStore"}
+
+-- this sql query sums the sales for each store per date. (summing the department subtotals)
+    SELECT Store, Date, Weekly_Sales as totalSales
+    FROM salesSQL
+    GROUP BY Store, Date;
+```
+
+
+#### <B>Add this new dataframe as a new table to the database</B>
+```{r, echo=TRUE}
+# This is done, so we can join this transformed data with the features SQL table. 
+
+#Add data source to the 'in memory' sql database
+  copy_to(con,weeklySalesPerStore,"weeklySalesPerStoreSQL")
+
+```
+
+
+#### <B>SQL Chunk 2: Join 2 Database Tables</B>
+```{sql, echo=TRUE, connection=con, label='Join2', output.var="JoinedTables"}
+
+/*The weeklySalesPerStoreSQL table is joined with featuresSQL table.
+  The store Id and Dates are used as keys, to find the correct temperature and Fuel_Price in featuresSQL.   Because we joined the 2 tables, we can now calculate the sold liters and add as a new column.
+  Here is also where the advantage of storing dates in ISO Character notation comes into play.
+  We can no apply the SQL function strftime(), to subtract the years or other dateparts.
+  This wouldn't have been possible otherwise using SQL.*/
+
+  SELECT w.Store as store, w.Date as sellWeek, totalSales, Temperature as temperature, 
+    Fuel_Price as fuelPrice, totalSales / Fuel_Price as soldLiters, 
+    strftime('%Y', w.Date) as sellYear, strftime('%m', w.Date) as sellMonth
+  FROM weeklySalesPerStoreSQL as w
+  INNER JOIN featuresSQL as f
+    ON w.Store = f.Store
+    AND w.Date = f.Date;
+
+```
+
+
+#### <B>Add this new dataframe as a new table to the database</B>
+```{r, echo=TRUE}
+# This is done, so we can join this transformed data with the features SQL table. 
+
+#Add data source to the 'in memory' sql database
+  copy_to(con,JoinedTables,"joinedTablesSQL")
+
+```
+
+
+
+#### <B>SQL Chunk 3: Create DF Sales per Store for Type A</B>
+```{sql, echo=TRUE, connection=con, label='salesTypeA', output.var="salesTypeA"}
+
+--Join 2 tables using SQL, filter Type A stores and sort total sales descending
+    SELECT j.store, sum(totalSales) as totalSales, s.Type
+    FROM joinedTablesSQL as j
+    LEFT OUTER JOIN storesSQL as s
+    ON j.store = s.Store
+    WHERE s.Type = "A"
+    GROUP BY j.store
+    ORDER BY totalSales DESC;
+```
+
+
+#### <B>SQL Chunk 4: Create DF Sales per Store for Type B</B>
+```{sql, echo=TRUE, connection=con, label='salesTypeB', output.var="salesTypeB"}
+      
+--Join 2 tables using SQL, filter Type B stores and sort total sales descending
+    SELECT j.store, sum(totalSales) as totalSales, s.Type
+    FROM joinedTablesSQl as j
+    LEFT OUTER JOIN storesSQL as s
+    on j.store = s.Store
+    WHERE s.Type = "B"
+    GROUP BY j.store
+    ORDER BY totalSales DESC;
+```
+
+
+#### <B>SQL Chunk 5: Create DF Sales per Store for Type C</B>
+```{sql, echo=TRUE, connection=con, label='salesTypeC', output.var="salesTypeC"}
+      
+--Join 2 tables using SQL, filter Type C stores and sort total sales descending
+    SELECT j.store, sum(totalSales) as totalSales, s.Type
+    FROM joinedTablesSQl as j
+    LEFT OUTER JOIN storesSQL as s
+    on j.store = s.Store
+    WHERE s.Type = "C"
+    GROUP BY j.store
+    ORDER BY totalSales DESC;
+```
+
+
+
+#### <B>Demo using Joins in R</B>
+```{r, echo=TRUE}
+
+# In this chunk I  join data frames using R-language.
+
+# by joining these dataframes i can calculate additional key measures. RevPam and AvgPrice.
+# RevPam = revenue per available meter, avg price is average price per sold liter for each store
+statsPerStore <- JoinedTables%>%
+  group_by(store)%>%
+  summarise(totalSales = sum(totalSales), soldLiters=sum(soldLiters))%>%
+  inner_join(stores, by = c("store"= "Store"))%>%
+  transmute(Store = store,
+            totalSales = totalSales,
+            size = Size,
+            type = Type,
+            soldLiters = soldLiters
+          )%>%
+    mutate(revPam = totalSales / size, 
+         avgPrice = totalSales / soldLiters) 
+
+# storecount per type is needed to calculate the average pricing per store type
+storeCount <- stores %>%
+  select(Type)%>%
+  group_by(Type)%>%
+  count(Type, name = "Count")
+
+# by joining these dataframes i can calculate the same measures but now for each store type.
+statsPerType <- statsPerStore %>%
+  group_by(type)%>%
+  summarise(totalSales=sum(totalSales), 
+            totalSize=sum(size),
+            totalLiters = sum(soldLiters)
+            )%>%
+  inner_join(storeCount, by = c("type" = "Type"))%>%
+  mutate(revPam = totalSales / totalSize,
+         avgPrice = totalSales / totalLiters,
+         avgSalesType = totalSales / Count
+         )
+
+```
+
+
+#### <B>Create Dataframe where dates are stored as date type</B>
+```{r, echo=TRUE}
+# first join sales and stores on Store number.
+# change the date column w/ type chr, to date column w/ type date
+# when this is done, we can add easily add new columns w/ parts of the dates using lubridate
+
+StoresAndTypes <- sales %>%
+  inner_join(stores, by = c("Store" = "Store" ))%>%
+  transmute(store= Store,
+            dept = Dept,
+            salesWeek = ymd(Date),                    #using lubridate to convert to date type
+            weeklySales = Weekly_Sales,
+            storeType = Type)%>%
+  mutate(salesYear=year(salesWeek),                   # because we converted to date type
+         salesMonth=month(salesWeek),                 # we can extract date parts using lubridate
+         SalesQtr=quarter(salesWeek))
+
+
+StoresAndTypes
+```
+
+#### <B>Create Dataframe, filter values and save variables</B>
+
+```{r echo=TRUE}
+
+# filter for each store the total sales for the year 2011 and 2012, for quarter 2 only. 
+# then calculate the percentage increase van Q2 2011 and Q2 2012.
+
+# 1. filter the data needed and save as DF
+dummyDF <- StoresAndTypes%>%
+  filter(salesYear == 2011 |  salesYear == 2012, 
+         SalesQtr == 2)%>%
+  group_by(salesYear, storeType)%>%
+  summarise(sales = sum(weeklySales))%>%
+  arrange(salesYear,
+          storeType)
+
+# 2. from new DF, select from sales column, the values and save as variables.
+A2011 = dummyDF$sales[1]
+B2011 = dummyDF$sales[2]
+C2011 = dummyDF$sales[3]
+
+A2012 = dummyDF$sales[4]
+B2012 = dummyDF$sales[5]
+C2012 = dummyDF$sales[6]
+
+# 3. Now we have the single values stored as values we can perform calculations
+# 4. The math outcomes we can also store as variables for later use in graphs. 
+total2012 = sum(A2012,B2012,C2012)
+total2011 = sum(A2011,B2011,C2011)
+salesIncreaseA = round(((A2012-A2011)/A2011)*100,1)
+salesIncreaseB = round(((B2012-B2011)/B2011)*100,1)
+salesIncreaseC = round(((C2012-C2011)/C2011)*100,1)
+salesIncreaseTotal = round(((total2012-total2011)/total2011)*100,1)
+
+# 5. Set Increase Targets (%)
+targetA = 2
+targetB = 3
+targetC = 5
+
+targetAabs = A2011*(1+(targetA/100))
+targetBabs = B2011*(1+(targetB/100))
+targetCabs = C2011*(1+(targetC/100))
+targetCombAbs = sum(targetAabs, targetBabs, targetCabs)
+targetCombined = round(((targetCombAbs-total2011)/total2011)*100,1)
+
+
+# 6. Remove the DF from memory. It's not needed anymore.
+rm(dummyDF)
+
+
+```
+
+
+#### <B>Construct Theme and base colors</B>
+```{r, echo=TRUE}
+
+# setting theme variables so the design in all graphs is standardized
+
+h1 = "#2780E3" 
+h2 = "#60A2EA"
+h3 = "#98C3F2"
+go = "gray85" #greyedOut
+ot = "#72747C" #tekst outside graph
+
+t1 = h1
+t2 = "#FFC917"
+t3 = "#36A85D"
+
+
+label_color = "white"
+TypeColor = c(t1,t2,t3)
+
+theme_jvs <- theme(
+  panel.background = element_blank(),
+  panel.grid = element_blank(),
+  legend.position = "none",
+  legend.key = element_blank(),
+  plot.title = element_text(size=16, hjust=0.5, color = h1),
+  plot.subtitle = element_text(size=14, hjust=0.5, color= ot),
+  plot.caption =  element_text(size=10, color=ot, face = "italic"),
+  axis.title = element_text(color=ot, size=12),
+  axis.text = element_text(color =ot),
+  axis.line = element_line(color =ot),
+  )
+
+```
+
+
+
+# Dashboard
+
+## column {data-width=350}
+
+### <B>Sales Increase Type A</B>
+
+```{r}
+
+# Re-use the stored variables
+
+gauge(salesIncreaseA, -100, 100, symbol = '%', label = paste("Target >=" , targetA,"%"),
+      gaugeSectors(success = c(targetA, 100),
+                   danger = c(-100,0),
+                   warning = c(0, targetA)))
+```
+
+
+
+### <B>Sales Increase Type B</B>
+
+```{r}
+
+# Re-use the stored variables
+
+gauge(salesIncreaseB, -100, 100, symbol = '%', label = paste("Target >=" , targetB,"%"),
+      gaugeSectors(success = c(targetB, 100),
+                   danger = c(-100,0),
+                   warning = c(0, targetB)))
+```
+
+
+### <B>Sales Increase Type C</B>
+
+```{r}
+
+# Re-use the stored variables
+
+gauge(salesIncreaseC, -100, 100, symbol = '%', label = paste("Target >=" , targetC,"%"),
+      gaugeSectors(success = c(targetC, 100),
+                   danger = c(-100,0),
+                   warning = c(0, targetC)))
+```
+
+### <B>Sales Increase Combined Types</B>
+
+```{r}
+
+# Re-use the stored variables
+gauge(salesIncreaseTotal, -100, 100, symbol = '%', label = paste("Target >=" , targetCombined,"%"),
+      gaugeSectors(success = c(targetCombined, 100),
+                   danger = c(-100,0),
+                   warning = c(0, targetCombined)))
+```
+
+
+
+
+## column {data-width=350}
+-----------------------------------------------------------------------
+
+### Total Sales vs Store size
+
+```{r}
+ggplot(statsPerStore, aes(x=size, y=totalSales, color=type, size=revPam, alpha=0.01))+
+  geom_point()+
+  theme_jvs+
+  scale_x_continuous(breaks = seq(0, 200000, 25000), labels=unit_format(big.mark = ".", unit=NULL))+
+                     
+                     
+  scale_y_continuous(breaks = seq(0, 7000000, 500000),
+                     labels= unit_format(accuracy = 0.1,
+                                        scale = 1e-6, unit = "M"))+
+  scale_color_manual(values = c(t1,t2,t3))+
+  theme(legend.position = "right")+ # place legend at right side
+  guides(alpha=FALSE)+ #hide alpha aesthetic from legend
+  labs(x="Store Size", y="Total Sales",
+       color="Store Type", #change legend title of the color aesthetic
+       size="RevPam" #change legend tittle of the size aesthetic
+       )
+  
+```
+
+
+### Average Price per store type
+```{r}
+ggplot(statsPerStore, aes(x=type, y=avgPrice))+
+  geom_boxplot(fill = TypeColor)+
+  theme_jvs+
+  labs(x="Store type", y="Average Price per Liter")+
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01))
+
+```
+
+
+### Average Revenue per available m2 (RevPam)
+```{r}
+TypeColor = c(h1,"#FFC917","#36A85D")
+
+ggplot(statsPerType, aes(x=type, y=revPam))+
+  geom_col(fill=TypeColor)+
+  theme_jvs+
+  labs(x="Store Type", y="RevPam")+
+  geom_text(aes(label = round(revPam, 2), vjust = -0.2))+
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.01))
+  
+```
+
+
+## column {data-width=350}
+-----------------------------------------------------------------------
+
+### Sales Type A
+
+```{r}
+
+barColors = c(t1)
+
+ggplot(salesTypeA, aes(x=reorder(store, -totalSales), y=totalSales))+
+ geom_col(fill=barColors)+
+  theme_jvs+
+  scale_y_continuous(breaks = seq(0, 7000000, 500000),
+                     labels=unit_format(accuracy = 0.1,
+                                        scale = 1e-6, unit = "M"))+
+  labs(x="Store Number", y="Total Sales")
+ 
+
+```
+
+### Sales Type B
+
+```{r}
+#barColors = c(h1,h2,h3,go,go,go,go,go,go,go)
+
+barColors=c(t2)
+
+ggplot(salesTypeB, aes(x=reorder(store, -totalSales), y=totalSales))+
+ geom_col(fill=barColors)+
+  theme_jvs+
+  scale_y_continuous(breaks = seq(0, 6000000, 500000),
+                     labels=unit_format(accuracy = 0.1,
+                                        scale = 1e-6, unit = "M"))+
+  labs(x="Store Number", y="Total Sales")
+
+```
+
+
+### Sales Type C
+
+```{r}
+barColors = c(t3)
+
+ggplot(salesTypeC, aes(x=reorder(store, -totalSales), y=totalSales))+
+ geom_col(fill=barColors)+
+  theme_jvs+
+  scale_y_continuous(breaks = seq(0, 1500000, 500000),
+                     labels=unit_format(accuracy = 0.1,
+                                        scale = 1e-6, unit = "M"))+
+  labs(x="Store Number", y="Total Sales")
+
+```
+
