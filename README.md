@@ -7,8 +7,6 @@ The datafiles contain sales data of 40 different stores from January 2010 to Dec
 Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011. 
 
 
----
-
 ## Techniques Used
 - Format dates to ISO standard notation
 - Create an in-memory SQLite database
@@ -20,23 +18,15 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
 - Customized theme
 - Create various plots using GGplot
 - Create dashboard using Flexdashboard
-<br>
-<br>
 
----
 
 ## Outcome
 ![dashboard](Images/Dashboard.png)
-<br>
-<br>
 
----
 
 ## Code Examples
-<br>
 
 ### Create SQLite in-memory database
-<br>
 
 ```r
 {r, echo=TRUE}
@@ -52,10 +42,10 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
     copy_to(con,sales, "salesSQL")
     copy_to(con,features, "featuresSQL")
 ```
-<br>
+
 
 ### Join tables using SQL
-<br>
+
 
 ```sql
 {sql, echo=TRUE, connection=con, label='Join2', output.var="JoinedTables"}
@@ -74,10 +64,10 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
     ON w.Store = f.Store
     AND w.Date = f.Date;
 ```
-<br>
+
 
 ### Join tables using R
-<br>
+
 
 ```R
 {r, echo=TRUE}
