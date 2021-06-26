@@ -1,4 +1,4 @@
-<h1 style="color: Tomato;">BSc Store Data</h1>
+# **BSc Store Data**
 
 ## **Project Summary**
 In this project three csv datafiles are analysed using various techniques. <br>
@@ -26,9 +26,9 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
 ![dashboard](Images/Dashboard.png)
 
 
-## Code Examples
+## **Code Examples**
 
-### Create SQLite in-memory database
+### *Create SQLite in-memory database*
 
 ```r
 {r, echo=TRUE}
@@ -46,7 +46,7 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
 ```
 
 
-### Join tables using SQL
+### *Join tables using SQL*
 
 
 ```sql
@@ -68,7 +68,7 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
 ```
 
 
-### Join tables using R
+### *Join tables using R*
 
 
 ```R
