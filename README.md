@@ -1,6 +1,12 @@
+<style>
+  h1{color: dodgerblue; font-weight: bold}
+  h2{color: steelblue; font-weight: bold}
+  h3{font-weight: bold; font-style: italic}
+</style>
+
 # BSc Store Data
 
-## **Project Summary**
+## Project Summary*
 In this project three csv datafiles are analysed using various techniques. 
 The datafiles contain sales data of 40 different stores from January 2010 to December 2012. All 40 stores are categorized in three different store types, A, B and C. The outcome of this analysis is a dashbboard designed with flexdashboard. It highlights the results per type of store. 
 <br>
@@ -8,7 +14,7 @@ The datafiles contain sales data of 40 different stores from January 2010 to Dec
 
 ---
 
-## **Techniques Used**
+## Techniques Used
 - Format dates to ISO standard notation
 - Create an in-memory SQLite database
 - Join database tables using SQL
@@ -24,17 +30,17 @@ The datafiles contain sales data of 40 different stores from January 2010 to Dec
 
 ---
 
-## **Outcome**
+## Outcome
 ![dashboard](Images/Dashboard.png)
 <br>
 <br>
 
 ---
 
-## **Code Examples**
+## Code Examples
 <br>
 
-### *Create SQLite in-memory database*
+### Create SQLite in-memory database
 <br>
 
 ```r
@@ -53,7 +59,7 @@ The datafiles contain sales data of 40 different stores from January 2010 to Dec
 ```
 <br>
 
-### *Join tables using SQL*
+### Join tables using SQL
 <br>
 
 ```sql
@@ -75,7 +81,7 @@ The datafiles contain sales data of 40 different stores from January 2010 to Dec
 ```
 <br>
 
-### *Join tables using R*
+### Join tables using R
 <br>
 
 ```R
