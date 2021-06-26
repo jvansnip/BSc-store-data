@@ -1,6 +1,6 @@
-# BSc Store Data
+<h1 style="color: Tomato;">BSc Store Data</h1>
 
-## Project Summary
+## **Project Summary**
 In this project three csv datafiles are analysed using various techniques. <br>
 The datafiles contain sales data of 40 different stores from January 2010 to December 2012. All 40 stores are categorized in three different store types, A, B and C.
 <br>
@@ -9,7 +9,7 @@ The outcome of this analysis is a dashbboard designed with flexdashboard. It hig
 Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011. 
 
 
-## Techniques Used
+## **Techniques Used**
 - Format dates to ISO standard notation
 - Create an in-memory SQLite database
 - Join database tables using SQL
@@ -22,7 +22,7 @@ Gauge charts measure sales results quarter 2 2012 vs 2nd quarter 2011.
 - Create dashboard using Flexdashboard
 
 
-## Outcome
+## **Outcome**
 ![dashboard](Images/Dashboard.png)
 
 
